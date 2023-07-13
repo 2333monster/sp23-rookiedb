@@ -1,5 +1,8 @@
 package edu.berkeley.cs186.database.index;
 
+import java.util.Iterator;
+import java.util.Optional;
+
 import edu.berkeley.cs186.database.common.Buffer;
 import edu.berkeley.cs186.database.common.Pair;
 import edu.berkeley.cs186.database.concurrency.LockContext;
@@ -8,15 +11,12 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
-import java.util.Iterator;
-import java.util.Optional;
-
 /**
  * An inner node or a leaf node. See InnerNode and LeafNode for more
  * information.
  */
 abstract class BPlusNode {
-    // Core API ////////////////////////////////////////////////////////////////
+    // Core API //////////////////////////////////////////////////////////////////
     /**
      * n.get(k) returns the leaf node on which k may reside when queried from n.
      * For example, consider the following B+ tree (for brevity, only keys are
@@ -94,7 +94,7 @@ abstract class BPlusNode {
      *
      * When a leaf splits, it returns the first entry in the right node as the
      * split key. In this example, 3 is the split key. After leaf0 splits, inner
-     * inserts the new key and child pointer into itself and hits case 1 (i.e. it
+     * inserts the new key and child pointer into itself and hits case 0 (i.e. it
      * does not overflow). The tree looks like this:
      *
      *                          inner
@@ -131,8 +131,8 @@ abstract class BPlusNode {
      * splitting.
      *
      * Our B+ trees do not support duplicate entries with the same key. If a
-     * duplicate key is inserted into a leaf node, the tree is left unchanged
-     * and a BPlusTreeException is raised.
+     * duplicate key is inserted, the tree is left unchanged and an exception is
+     * raised.
      */
     public abstract Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid);
 
@@ -154,10 +154,6 @@ abstract class BPlusNode {
      * fillFactor should ONLY be used for determining how full leaf nodes are
      * (not inner nodes), and calculations should round up, i.e. with d=5
      * and fillFactor=0.75, leaf nodes should be 8/10 full.
-     *
-     * You can assume that 0 < fillFactor <= 1 for testing purposes, and that
-     * a fill factor outside of that range will result in undefined behavior
-     * (you're free to handle those cases however you like).
      */
     public abstract Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor);
@@ -213,11 +209,11 @@ abstract class BPlusNode {
      */
     public abstract void remove(DataBox key);
 
-    // Helpers /////////////////////////////////////////////////////////////////
+    // Helpers ///////////////////////////////////////////////////////////////////
     /** Get the page on which this node is persisted. */
     abstract Page getPage();
 
-    // Pretty Printing /////////////////////////////////////////////////////////
+    // Pretty Printing ///////////////////////////////////////////////////////////
     /**
      * S-expressions (or sexps) are a compact way of encoding nested tree-like
      * structures (sort of like how JSON is a way of encoding nested dictionaries
@@ -246,7 +242,7 @@ abstract class BPlusNode {
      */
     public abstract String toDot();
 
-    // Serialization ///////////////////////////////////////////////////////////
+    // Serialization /////////////////////////////////////////////////////////////
     /** n.toBytes() serializes n. */
     public abstract byte[] toBytes();
 
@@ -255,7 +251,7 @@ abstract class BPlusNode {
      */
     public static BPlusNode fromBytes(BPlusTreeMetadata metadata, BufferManager bufferManager,
                                       LockContext treeContext, long pageNum) {
-        Page p = bufferManager.fetchPage(treeContext, pageNum);
+        Page p = bufferManager.fetchPage(treeContext, pageNum, false);
         try {
             Buffer buf = p.getBuffer();
             byte b = buf.get();
