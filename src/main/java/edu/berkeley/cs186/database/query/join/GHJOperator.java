@@ -12,6 +12,7 @@ import edu.berkeley.cs186.database.query.disk.Run;
 import edu.berkeley.cs186.database.table.Record;
 import edu.berkeley.cs186.database.table.Schema;
 
+import javax.sound.midi.Receiver;
 import java.util.*;
 
 public class GHJOperator extends JoinOperator {
@@ -71,7 +72,16 @@ public class GHJOperator extends JoinOperator {
         // You may find the implementation in SHJOperator.java to be a good
         // starting point. You can use the static method HashFunc.hashDataBox
         // to get a hash value.
-        return;
+        for(Record record: records) {
+            int columnIndex = left ? getLeftColumnIndex() : getRightColumnIndex();
+            DataBox columnValue = record.getValue(columnIndex);
+            int hash = HashFunc.hashDataBox(columnValue, pass);
+            int partitionNum = hash % partitions.length;
+            if (partitionNum < 0)
+                partitionNum += partitions.length;
+            partitions[partitionNum].add(record);
+        }
+        return ;
     }
 
     /**
@@ -112,6 +122,34 @@ public class GHJOperator extends JoinOperator {
         // You shouldn't refer to any variable starting with "left" or "right"
         // here, use the "build" and "probe" variables we set up for you.
         // Check out how SHJOperator implements this function if you feel stuck.
+
+        Map<DataBox,List<Record>> hashTable = new HashMap<>();
+        // Building stage
+        for (Record buildRecord: buildRecords){
+            DataBox buildJoinValue = buildRecord.getValue(buildColumnIndex);
+            if(!hashTable.containsKey(buildJoinValue)){
+                hashTable.put(buildJoinValue,new ArrayList<>());
+            }
+            hashTable.get(buildJoinValue).add(buildRecord);
+        }
+
+        // Probing stage
+        for (Record probeRecord: probeRecords){
+            DataBox probeJoinValue = probeRecord.getValue(probeColumnIndex);
+            if(!hashTable.containsKey(probeJoinValue)){
+                continue;
+            }
+            List<Record> matchRecords = hashTable.get(probeRecord);
+            for(Record matchRecord: matchRecords){
+                Record record;
+                if(!probeFirst){
+                    record = matchRecord.concat(probeRecord);
+                }else{
+                    record = probeRecord.concat(matchRecord);
+                }
+                this.joinedRecords.add(record);
+            }
+        }
     }
 
     /**
@@ -136,6 +174,14 @@ public class GHJOperator extends JoinOperator {
             // TODO(proj3_part1): implement the rest of grace hash join
             // If you meet the conditions to run the build and probe you should
             // do so immediately. Otherwise you should make a recursive call.
+            Partition leftPartition = leftPartitions[i];
+            Partition rightPartition = rightPartitions[i];
+            int limit = this.numBuffers-2;
+            if(leftPartition.getNumPages()<=limit || rightPartition.getNumPages()<=limit){
+                buildAndProbe(leftPartition,rightPartition);
+            }else{
+                run(leftPartition,rightPartition,pass+1);
+            }
         }
     }
 
@@ -196,6 +242,9 @@ public class GHJOperator extends JoinOperator {
      * exactly 8 records.
      *
      * @return Pair of leftRecords and rightRecords
+     * SHJ在驱动表的分区大小大于B-2时会失效，因此只要驱动表中有足够多的冗余数据，便可使其失效。
+     * 但由于GHJ要保持有效，因此pass不能过深，保持被驱动表的大小满足条件即可。
+     * 由题知，缓冲区大小为6，每个数据页存储8个数据，因此只需要往一个分区中填入(6-2)*8+1=33个数据即可
      */
     public static Pair<List<Record>, List<Record>> getBreakSHJInputs() {
         ArrayList<Record> leftRecords = new ArrayList<>();
@@ -203,6 +252,10 @@ public class GHJOperator extends JoinOperator {
 
         // TODO(proj3_part1): populate leftRecords and rightRecords such that
         // SHJ breaks when trying to join them but not GHJ
+        for(int i=0; i<33; i++){
+            leftRecords.add(createRecord(1));
+        }
+        rightRecords.add(createRecord(1));
         return new Pair<>(leftRecords, rightRecords);
     }
 
@@ -223,7 +276,14 @@ public class GHJOperator extends JoinOperator {
         ArrayList<Record> leftRecords = new ArrayList<>();
         ArrayList<Record> rightRecords = new ArrayList<>();
         // TODO(proj3_part1): populate leftRecords and rightRecords such that GHJ breaks
-
+        // 首先同样要让表数据页大小超过缓冲区数-2
+        // 但在本题中，但要让GHJ提高pass，必须让两张表都满足上述条件
+        // 而对于GHJ来说，如果表中均为冗余数据，则会不断造成无效分区，pass急速增加
+        // 因此，在两表中添加大量冗余数据即可达成目标
+        for(int i = 0; i < 33; i++){
+            leftRecords.add(createRecord(1));
+            rightRecords.add(createRecord(1));
+        }
         return new Pair<>(leftRecords, rightRecords);
     }
 }

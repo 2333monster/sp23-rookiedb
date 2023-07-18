@@ -227,4 +227,5 @@ public abstract class QueryOperator implements Iterable<Record> {
      */
     public abstract int estimateIOCost();
 
+
 }

@@ -87,6 +87,8 @@ public class SortOperator extends QueryOperator {
      */
     public Run sortRun(Iterator<Record> records) {
         // TODO(proj3_part1): implement
+        Run run;
+
         return null;
     }
 
